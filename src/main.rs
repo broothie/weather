@@ -1,16 +1,16 @@
 use std::{fmt};
 
-const WEATHER_API_KEY: &str = "051d9e36c3b57c19ba3c75b8c402c462";
 const WEATHER_API_BASE_URL: &str = "https://api.openweathermap.org/data/2.5/weather";
 
 #[tokio::main]
 async fn main() {
+    let client = Client { weather_api_key: env!("WEATHER_API_KEY").to_string() };
     let args: Vec<String> = std::env::args().collect();
 
     match args.as_slice() {
-        [_, city] => fetch_and_print_weather(&[city]).await,
-        [_, city, region] => fetch_and_print_weather(&[city, region]).await,
-        [_, city, region, country] => fetch_and_print_weather(&[city, region, country]).await,
+        [_, city] => client.fetch_and_print_weather(&[city]).await,
+        [_, city, region] => client.fetch_and_print_weather(&[city, region]).await,
+        [_, city, region, country] => client.fetch_and_print_weather(&[city, region, country]).await,
         _ => print_help()
     };
 }
@@ -20,18 +20,24 @@ fn print_help() {
     println!("  $ weather <city> [region] [country]");
 }
 
-async fn fetch_and_print_weather(query: &[&str]) {
-    let url = format!("{}?appid={}&q={}&units=imperial", WEATHER_API_BASE_URL, WEATHER_API_KEY, query.join(","));
-    let response = reqwest::get(url).await.unwrap();
+struct Client {
+    weather_api_key: String,
+}
 
-    let status = response.status();
-    if status.is_success() {
-        println!("{}", response.json::<WeatherResponse>().await.unwrap());
-    } else if status.is_client_error() {
-        println!("an error occurred: {}", response.json::<WeatherError>().await.unwrap().message);
-    } else {
-        println!("an unknown error occurred")
-    };
+impl Client {
+    async fn fetch_and_print_weather(&self, query: &[&str]) {
+        let url = format!("{}?appid={}&q={}&units=imperial", WEATHER_API_BASE_URL, self.weather_api_key, query.join(","));
+        let response = reqwest::get(url).await.unwrap();
+
+        let status = response.status();
+        if status.is_success() {
+            println!("{}", response.json::<WeatherResponse>().await.unwrap());
+        } else if status.is_client_error() {
+            println!("an error occurred: {}", response.json::<WeatherError>().await.unwrap().message);
+        } else {
+            println!("an unknown error occurred")
+        };
+    }
 }
 
 #[derive(serde::Deserialize, fmt::Debug)]
@@ -61,7 +67,7 @@ struct Wind {
 
 impl fmt::Display for WeatherResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "weather in {}:\n\t{}°F {}\n\thumidity: {}%\n\twind speed: {}mph",
+        write!(f, "weather in {}:\n  {}°F {}\n  humidity: {}%\n  wind speed: {}mph",
             self.name,
             self.main.temp,
             self.weather[0].description,
